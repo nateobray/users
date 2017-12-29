@@ -35,35 +35,50 @@
 
 	********************************************************************************************************************/
 	
-	Class oUsers extends obray\oDBO{
+	Class oUsers extends \obray\oDBO{
 
-		public function __construct(){
-			
-			parent::__construct();
+		private $max_failed_login_attempts = 10;
+		protected $table = 'oUsers';
+		protected $table_definition = array(
+			'ouser_id' => 			array('primary_key' => TRUE ),
+			'ouser_first_name' => 		array('data_type'=>'varchar(128)',		'required'=>FALSE	),
+			'ouser_last_name' => 		array('data_type'=>'varchar(128',		'required'=>FALSE	),
+			'ouser_email' => 		array('data_type'=>'varchar(128)',		'required'=>TRUE	),
+			'ouser_permission_level' =>	array('data_type'=>'integer',			'required'=>FALSE	),
+			'ouser_status' =>		array('data_type'=>'varchar(20)',		'required'=>FALSE	),
+			'ouser_password' =>		array('data_type'=>'password',			'required'=>TRUE	),
+			'ouser_failed_attempts' =>	array('data_type'=>'integer',			'required'=>FALSE	),
+			'ouser_last_login' =>		array('data_type'=>'datetime',			'required'=>FALSE	),
+			'ouser_settings' => 		array('data_type'=>'text',			'required'=>FALSE	)
+		);
+		
+		protected $permissions = array(
+			'object' => 'any',
+			'add' => 'any',
+			'get' => 1,
+			'update' => 1,
+			'login' => 'any',
+			'logout'=> 'any',
+			'count' => 1,
+			'getRolesAndPermissions' => 1,
+			'blah' => 1
+		);
 
-			$this->table = 'oUsers';
-			$this->table_definition = array(
-				'ouser_id' => 			array('primary_key' => TRUE ),
-				'ouser_first_name' => 		array('data_type'=>'varchar(128)',		'required'=>FALSE	),
-				'ouser_last_name' => 		array('data_type'=>'varchar(128',		'required'=>FALSE	),
-				'ouser_email' => 		array('data_type'=>'varchar(128)',		'required'=>TRUE	),
-				'ouser_permission_level' =>	array('data_type'=>'integer',			'required'=>FALSE	),
-				'ouser_status' =>		array('data_type'=>'varchar(20)',		'required'=>FALSE	),
-				'ouser_password' =>		array('data_type'=>'password',			'required'=>TRUE	),
-				'ouser_failed_attempts' =>	array('data_type'=>'integer',			'required'=>FALSE	),
-				'ouser_last_login' =>		array('data_type'=>'datetime',			'required'=>FALSE	),
-				'ouser_settings' => 		array('data_type'=>'text',			'required'=>FALSE	)
-			);
-			
-			$this->permissions = array(
-				'object' => 'any',
-				'add' => 1,
-				'get' => 1,
-				'update' => 1,
-				'login' => 'any',
-				'logout'=> 'any',
-				'count' => 1
-			);
+		public function add( $params=array() ){
+
+			if( empty($params["ouser_active"]) ){
+				$params["ouser_active"] = TRUE;
+			}
+
+			if( empty($params["ouser_permission_level"]) ){
+				$params["ouser_permission_level"] = 1;
+			}
+
+			if( empty($params["ouser_failed_attempts"]) ){
+				$params["ouser_failed_attempts"] = 0;
+			}
+
+			parent::add( $params );
 
 		}
 
@@ -87,11 +102,11 @@
 				$this->get(array('ouser_email'=>$params['ouser_email'], 'ouser_password' => $params['ouser_password']));
 				
 				// if the user exists log them in but only if they haven't exceed the max number of failed attempts (set in settings)
-				if( count($this->data) === 1 && $this->data[0]->ouser_failed_attempts < __OBRAY_MAX_FAILED_LOGIN_ATTEMPTS__ && $this->data[0]->ouser_status != 'disabled'){
-					$_SESSION['ouser'] = $this->data[0];
+				if( count($this->data) === 1 && $this->data[0]->ouser_failed_attempts < $this->max_failed_login_attempts && $this->data[0]->ouser_status != 'disabled'){
+					$_SESSION[$this->user_session_key] = $this->data[0];
 					$this->getRolesAndPermissions();
-					$_SESSION['ouser']->ouser_settings = unserialize(base64_decode($_SESSION['ouser']->ouser_settings));
-					$this->update( array('ouser_id'=>$_SESSION['ouser']->ouser_id,'ouser_failed_attempts'=>0,'ouser_last_login'=>date('Y-m-d H:i:s')) );
+					$_SESSION[$this->user_session_key]->ouser_settings = unserialize(base64_decode($_SESSION[$this->user_session_key]->ouser_settings));
+					$this->update( array('ouser_id'=>$_SESSION[$this->user_session_key]->ouser_id,'ouser_failed_attempts'=>0,'ouser_last_login'=>date('Y-m-d H:i:s')) );
 					
 				// if the data is empty (no user is found with the provided credentials)	
 				} else if( empty($this->data) ){
@@ -99,51 +114,22 @@
 					$this->get(array('ouser_email'=>$params['ouser_email']));
 					if( count($this->data) === 1 ){ $this->update(array('ouser_id'=>$this->data[0]->ouser_id,'ouser_failed_attempts'=>($this->data[0]->ouser_failed_attempts+1)) ); $this->data = array(); }
 					$this->throwError('Invalid login, make sure you have entered a valid email and password.');
-					if( defined('__OBRAY_ENABLED_FAILED_ATTEMPT_LOGGING__') ){
-						$login = $this->route('/obray/OUserFailedAttempts/add/',array(
-							'ouser_email'=>$params["ouser_email"],
-							'ouser_password'=>$params["ouser_password"],
-							'ouser_attempt_ip'=> !empty($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:"Unknown",
-							'ouser_attempt_agent'=> !empty($_SERVER['HTTP_USER_AGENT'])?$_SERVER['HTTP_USER_AGENT']:"Unknown"),TRUE
-						);
-					}
-
+					
 				// if the user has exceeded the allowable login attempts
-				} else if( $this->data[0]->ouser_failed_attempts > __OBRAY_MAX_FAILED_LOGIN_ATTEMPTS__ ){
+				} else if( $this->data[0]->ouser_failed_attempts > $this->max_failed_login_attempts ){
 					$this->throwError('This account has been locked.');
-					if( defined('__OBRAY_ENABLED_FAILED_ATTEMPT_LOGGING__') ){
-						$login = $this->route('/obray/OUserFailedAttempts/add/',array(
-							'ouser_email'=>$params["ouser_email"],
-							'ouser_password'=>$params["ouser_password"],
-							'ouser_attempt_ip'=> !empty($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:"Unknown",
-							'ouser_attempt_agent'=> !empty($_SERVER['HTTP_USER_AGENT'])?$_SERVER['HTTP_USER_AGENT']:"Unknown"),TRUE
-						);
-					}
-
+				
 				// if the user has been disabled
 				} else if( $this->data[0]->ouser_status === 'disabled' ){
 					$this->throwError('This account has been disabled.');
-					if( defined('__OBRAY_ENABLED_FAILED_ATTEMPT_LOGGING__') ){
-						$login = $this->route('/obray/OUserFailedAttempts/add/',array(
-							'ouser_email'=>$params["ouser_email"],
-							'ouser_password'=>$params["ouser_password"],
-							'ouser_attempt_ip'=> !empty($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:"Unknown",
-							'ouser_attempt_agent'=> !empty($_SERVER['HTTP_USER_AGENT'])?$_SERVER['HTTP_USER_AGENT']:"Unknown"),TRUE
-						);
-					}
+
 				// if the user is not found then increment failed attempts and throw error
 				} else {
+
 					$this->get(array('ouser_email'=>$params['ouser_email']));
 					if( count($this->data) === 1 ){ $this->update( array('ouser_id'=>$this->data[0]->ouser_id,'ouser_failed_attempts'=>($this->data[0]->ouser_failed_attempts+1)) ); }
 					$this->throwError('Invalid login, make sure you have entered a valid email and password.');
-					if( defined('__OBRAY_ENABLED_FAILED_ATTEMPT_LOGGING__') ){
-						$login = $this->route('/obray/OUserFailedAttempts/add/',array(
-							'ouser_email'=>$params["ouser_email"],
-							'ouser_password'=>$params["ouser_password"],
-							'ouser_attempt_ip'=> !empty($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:"Unknown",
-							'ouser_attempt_agent'=> !empty($_SERVER['HTTP_USER_AGENT'])?$_SERVER['HTTP_USER_AGENT']:"Unknown"),TRUE
-						);
-					}
+
 				}
 			}
 
@@ -155,13 +141,13 @@
 
 		********************************************************************************************************************/
 
-		public function logout($params){ unset($_SESSION['ouser']);  $this->data['logout'] = TRUE;	}
+		public function logout($params){ unset($_SESSION[$this->user_session_key]);  $this->data['logout'] = TRUE;	}
 		
 		public function authorize($params=array()){
 			
-			if( !isSet( $_SESSION['ouser'] ) ){
+			if( !isSet( $_SESSION[$this->user_session_key] ) ){
 				$this->throwError('Forbidden',403);
-			} else if( isSet($params['level']) && $params['level'] < $_SESSION['ouser']->ouser_permission_level ){
+			} else if( isSet($params['level']) && $params['level'] < $_SESSION[$this->user_session_key]->ouser_permission_level ){
 				$this->throwError('Forbidden',403);
 			}
 
@@ -171,17 +157,17 @@
 		
 		public function setting($params=array()){
 			
-			if( !empty($params) && !empty($_SESSION['ouser']->ouser_id) ){
+			if( !empty($params) && !empty($_SESSION[$this->user_session_key]->ouser_id) ){
 				
 				if( !empty($params['key']) && isSet($params['value'])){
 					
-					$_SESSION['ouser']->ouser_settings[$params['key']] = $params['value'];
+					$_SESSION[$this->user_session_key]->ouser_settings[$params['key']] = $params['value'];
 					
-					$this->route('/obray/OUsers/update/?ouser_id='.$_SESSION['ouser']->ouser_id.'&ouser_settings='.base64_encode(serialize($_SESSION['ouser']->ouser_settings)));
+					$this->route('/obray/OUsers/update/?ouser_id='.$_SESSION[$this->user_session_key]->ouser_id.'&ouser_settings='.base64_encode(serialize($_SESSION[$this->user_session_key]->ouser_settings)));
 					
 				} else if( !empty($params['key']) ) {
 					
-					$this->data[$params['key']] = $_SESSION['ouser']->ouser_settings[$params['key']];
+					$this->data[$params['key']] = $_SESSION[$this->user_session_key]->ouser_settings[$params['key']];
 					
 				}
 				
@@ -196,7 +182,7 @@
 		************************************************************/
 
 		public function getRolesAndPermissions(){
-			
+
 			$sql = "SELECT oPermissions.opermission_code, oRoles.orole_code
 						FROM oUserRoles
 						JOIN oRoles ON oRoles.orole_id = oUserRoles.orole_id
@@ -212,11 +198,11 @@
 						WHERE oUserPermissions.ouser_id = :ouser_id";
 						
 			try {
-				$statement = $this->dbh->prepare($sql);
-				$statement->bindValue(':ouser_id', $_SESSION["ouser"]->ouser_id);
+				$statement = $this->oDBOConnection->connect()->prepare($sql);
+				$statement->bindValue(':ouser_id', $_SESSION[$this->user_session_key]->ouser_id);
 				$result = $statement->execute();
 				$this->data = [];
-				$statement->setFetchMode(PDO::FETCH_OBJ);
+				$statement->setFetchMode(\PDO::FETCH_OBJ);
 				while ($row = $statement->fetch()) {
 					$this->data[] = $row;
 				}
@@ -231,9 +217,9 @@
 					}
 				}
 
-				if( !empty($_SESSION["ouser"]) ){
-					$_SESSION["ouser"]->permissions = $permissions;
-					$_SESSION["ouser"]->roles = $roles;
+				if( !empty($_SESSION[$this->user_session_key]) ){
+					$_SESSION[$this->user_session_key]->permissions = $permissions;
+					$_SESSION[$this->user_session_key]->roles = $roles;
 				}
 
 				$this->data = array(
@@ -241,10 +227,98 @@
 					"roles" => $roles
 				);
 
-			} catch (Exception $e) {
-				//$this->throwError($e);
-				//$this->logError(oCoreProjectEnum::ODBO, $e);
+			} catch (\PDOException $e) {
+
+				if( !empty($e->errorInfo[1]) && $e->errorInfo[1] == 1146 ){
+					$this->scriptOnMissingTable($e);
+					
+					
+				}
+				
 			}
+
+		}
+
+		protected function checkPermissions($object_name,$direct){
+
+			//	1)	only restrict permissions if the call is coming from and HTTP request through router $direct === FALSE
+			if( $direct ){ return; }
+
+	    		//	2)	retrieve permissions
+	    		$perms = $this->getPermissions();
+
+	    		//	3)	restrict permissions on undefined keys
+	    		if( !isSet($perms[$object_name]) ){
+				$this->throwError('You cannot access this resource.',403,'Forbidden');
+		
+	    		// restrict access to users that are not logged in if that's required
+	    		} else if( ( is_int($perms[$object_name]) && !isSet($_SESSION[$this->user_session_key]) ) ){
+		    		if( isSet($_SERVER['PHP_AUTH_USER']) && isSet($_SERVER['PHP_AUTH_PW']) ){
+			    		$login = $this->route('/obray/OUsers/login/',array('ouser_email'=>$_SERVER['PHP_AUTH_USER'],'ouser_password'=>$_SERVER['PHP_AUTH_PW']),TRUE);
+			    		if( !isSet($_SESSION[$this->user_session_key]) ){ $this->throwError('You cannot access this resource.',401,'Unauthorized');	}
+		    		} else { $this->throwError('You cannot access this resource.',401,'Unauthorized'); }
+		    	// restrict access to users without correct permissions (non-graduated)
+	    		} else if( 
+					is_int($perms[$object_name]) && 
+					isSet($_SESSION[$this->user_session_key]) && 
+					(
+						isset($_SESSION[$this->user_session_key]->ouser_permission_level) 
+						&& !defined("__OBRAY_GRADUATED_PERMISSIONS__") 
+						&& $_SESSION[$this->user_session_key]->ouser_permission_level != $perms[$object_name]
+					)
+				){ 
+						$this->throwError('You cannot access this resource.',403,'Forbidden'); 
+				// restrict access to users without correct permissions (graduated)
+				} else if( 
+					is_int($perms[$object_name]) && 
+					isSet($_SESSION[$this->user_session_key]) && 
+					(
+						isset($_SESSION[$this->user_session_key]->ouser_permission_level) 
+						&& defined("__OBRAY_GRADUATED_PERMISSIONS__") 
+						&& $_SESSION[$this->user_session_key]->ouser_permission_level > $perms[$object_name]
+					)
+				){
+					$this->throwError('You cannot access this resource.',403,'Forbidden'); 
+				// roles & permissions checks
+				} else if(
+					(
+						is_array($perms[$object_name]) && 
+						isSet($perms[$object_name]['permissions']) &&
+						is_array($perms[$object_name]['permissions']) &&
+						count(array_intersect($perms[$object_name]['permissions'],$_SESSION[$this->user_session_key]->permissions)) == 0
+					) || (
+						is_array($perms[$object_name]) && 
+						isSet($perms[$object_name]['roles']) &&
+						is_array($perms[$object_name]['roles']) &&
+						count(array_intersect($perms[$object_name]['roles'],$_SESSION[$this->user_session_key]->roles)) == 0
+					) || (
+						is_array($perms[$object_name]) && 
+						isSet($perms[$object_name]['roles']) &&
+						is_array($perms[$object_name]['roles']) &&
+						in_array("SUPER",$_SESSION[$this->user_session_key]->roles)
+					) || (
+						is_array($perms[$object_name]) && 
+						isSet($perms[$object_name]['permissions']) &&
+						!is_array($perms[$object_name]['permissions'])
+					) || (
+						is_array($perms[$object_name]) && 
+						isSet($perms[$object_name]['roles']) &&
+						!is_array($perms[$object_name]['roles'])
+					) || (
+						is_array($perms[$object_name]) &&
+						!isSet($perms[$object_name]['roles']) &&
+						!isSet($perms[$object_name]['permissions'])
+					)
+				){
+					$this->throwError('You cannot access this resource.',403,'Forbidden'); 
+				
+				}
+			
+			return;
+			    
+		}
+
+		public function blah(){
 
 		}
 

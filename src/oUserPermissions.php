@@ -35,25 +35,19 @@
 
 	********************************************************************************************************************/
 	
-	Class oUserPermissions extends obray\oDBO{
+	Class oUserPermissions extends \obray\oDBO{
 
-		public function __construct(){
-			
-			parent::__construct();
+		protected $table = 'oUserPermissions';
+		protected $table_definition = array(
+			'ouser_permission_id' => 	array( 'primary_key' => TRUE ),
+			'opermission_id' => 		array( 'data_type'=>'integer',		'required'=>TRUE    ),
+			'ouser_id' => 		        array( 'data_type'=>'integer',		'required'=>TRUE    )
+		);
 
-			$this->table = 'oUserPermissions';
-			$this->table_definition = array(
-				'ouser_permission_id' => 	array( 'primary_key' => TRUE ),
-				'opermission_id' => 		array( 'data_type'=>'integer',		'required'=>TRUE    ),
-				'ouser_id' => 		        array( 'data_type'=>'integer',		'required'=>TRUE    )
-			);
-			
-			$this->permissions = array(
-				'object' => 'any',
-				'getArray' => 'any'
-			);
-
-        }
+		protected $permissions = array(
+			'object' => 'any',
+			'getArray' => 'any'
+		);
 
         public function getArray(){
             
