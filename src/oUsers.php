@@ -183,58 +183,63 @@
 
 		public function getRolesAndPermissions(){
 
-			$sql = "SELECT oPermissions.opermission_code, oRoles.orole_code
-						FROM oUserRoles
-						JOIN oRoles ON oRoles.orole_id = oUserRoles.orole_id
-					LEFT JOIN oRolePermissions ON oRolePermissions.orole_id = oUserRoles.orole_id
-						JOIN oPermissions ON oPermissions.opermission_id = oRolePermissions.opermission_id
-						WHERE oUserRoles.ouser_id = :ouser_id
-				
-				UNION 
-				
-					SELECT oPermissions.opermission_code, NULL AS orole_code
-						FROM oUserPermissions
-						JOIN oPermissions ON oPermissions.opermission_id = oUserPermissions.opermission_id
-						WHERE oUserPermissions.ouser_id = :ouser_id";
+			if( !empty($_SESSION[$this->user_session_key]->ouser_id) ){
+
+				$sql = "SELECT oPermissions.opermission_code, oRoles.orole_code
+							FROM oUserRoles
+							JOIN oRoles ON oRoles.orole_id = oUserRoles.orole_id
+						LEFT JOIN oRolePermissions ON oRolePermissions.orole_id = oUserRoles.orole_id
+							JOIN oPermissions ON oPermissions.opermission_id = oRolePermissions.opermission_id
+							WHERE oUserRoles.ouser_id = :ouser_id
+					
+					UNION 
+					
+						SELECT oPermissions.opermission_code, NULL AS orole_code
+							FROM oUserPermissions
+							JOIN oPermissions ON oPermissions.opermission_id = oUserPermissions.opermission_id
+							WHERE oUserPermissions.ouser_id = :ouser_id";
+							
+				try {
+					
+					$statement = $this->oDBOConnection->connect()->prepare($sql);
+					$statement->bindValue(':ouser_id', $_SESSION[$this->user_session_key]->ouser_id);
+					$result = $statement->execute();
+					$this->data = [];
+					$statement->setFetchMode(\PDO::FETCH_OBJ);
+					while ($row = $statement->fetch()) {
+						$this->data[] = $row;
+					}
+
+					$roles = array(); $permissions = array();
+					forEach( $this->data as $codes ){
+						if( !empty($codes->orole_code) && !in_array($codes->orole_code,$roles) ){
+							$roles[] = $codes->orole_code;
+						}
+						if( !empty($codes->opermission_code) && !in_array($codes->opermission_code,$permissions) ){
+							$permissions[] = $codes->opermission_code;
+						}
+					}
+
+					if( !empty($_SESSION[$this->user_session_key]) ){
+						$_SESSION[$this->user_session_key]->permissions = $permissions;
+						$_SESSION[$this->user_session_key]->roles = $roles;
+					}
+
+					$this->data = array(
+						"permissions" => $permissions,
+						"roles" => $roles
+					);
+
+				} catch (\PDOException $e) {
+
+					if( !empty($e->errorInfo[1]) && $e->errorInfo[1] == 1146 ){
+						$this->scriptOnMissingTable($e);
 						
-			try {
-				$statement = $this->oDBOConnection->connect()->prepare($sql);
-				$statement->bindValue(':ouser_id', $_SESSION[$this->user_session_key]->ouser_id);
-				$result = $statement->execute();
-				$this->data = [];
-				$statement->setFetchMode(\PDO::FETCH_OBJ);
-				while ($row = $statement->fetch()) {
-					$this->data[] = $row;
-				}
-
-				$roles = array(); $permissions = array();
-				forEach( $this->data as $codes ){
-					if( !empty($codes->orole_code) && !in_array($codes->orole_code,$roles) ){
-						$roles[] = $codes->orole_code;
+						
 					}
-					if( !empty($codes->opermission_code) && !in_array($codes->opermission_code,$permissions) ){
-						$permissions[] = $codes->opermission_code;
-					}
-				}
-
-				if( !empty($_SESSION[$this->user_session_key]) ){
-					$_SESSION[$this->user_session_key]->permissions = $permissions;
-					$_SESSION[$this->user_session_key]->roles = $roles;
-				}
-
-				$this->data = array(
-					"permissions" => $permissions,
-					"roles" => $roles
-				);
-
-			} catch (\PDOException $e) {
-
-				if( !empty($e->errorInfo[1]) && $e->errorInfo[1] == 1146 ){
-					$this->scriptOnMissingTable($e);
-					
 					
 				}
-				
+
 			}
 
 		}
