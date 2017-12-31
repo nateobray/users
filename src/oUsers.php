@@ -64,6 +64,21 @@
 			'blah' => 1
 		);
 
+		public function __construct(){
+
+			$dependencies = include "dependencies/config.php";
+			forEach( $dependencies as $key => $dependency ){
+				if( $key !== 'oUsers' ){
+					$this->$key = $dependency;
+				}
+			}
+
+			parent::__construct();
+			
+			return $this;
+			
+		}
+
 		public function add( $params=array() ){
 
 			if( empty($params["ouser_active"]) ){
@@ -325,6 +340,11 @@
 
 		public function blah(){
 
+		}
+
+		public function setPermissions( $permissions ){
+			
+			$this->permissions = $permissions;
 		}
 
 	}
