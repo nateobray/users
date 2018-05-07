@@ -1,30 +1,5 @@
 <?php
 
-/*****************************************************************************
- *
- * The MIT License (MIT)
- *
- * Copyright (c) 2014 Nathan A Obray
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the 'Software'), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *****************************************************************************/
-
 namespace obray;
 
 if (!class_exists(\obray\oObject::class)) {
@@ -76,8 +51,6 @@ Class oUsers extends \obray\oDBO
             }
         }
 
-//        parent::__construct();
-
         return $this;
 
     }
@@ -108,13 +81,13 @@ Class oUsers extends \obray\oDBO
      * @param string $oUserEmail
      * @param string $oUserPassword
      */
-    public function login($oUserEmail = '', $oUserPassword = '')
+    public function login($ouser_email = '', $ouser_password = '')
     {
         // Validate the required parameters
-        if (empty($oUserEmail)) {
+        if (empty($ouser_email)) {
             $this->throwError('Email is required', 500, 'ouser_email');
         }
-        if (empty($oUserPassword)) {
+        if (empty($ouser_password)) {
             $this->throwError('Password is required', 500, 'ouser_password');
         }
         if ($this->isError()) {
@@ -123,8 +96,8 @@ Class oUsers extends \obray\oDBO
 
         // get user based on credentials
         $response = $this->get(array(
-            'ouser_email' => $oUserEmail,
-            'ouser_password' => $oUserPassword
+            'ouser_email' => $ouser_email,
+            'ouser_password' => $ouser_password
         ));
 
         // if the user exists log them in but only if they haven't exceed the max number of failed attempts (set in settings)
@@ -301,7 +274,7 @@ Class oUsers extends \obray\oDBO
         }
 
     }
-
+    /****
     protected function checkPermissions($object_name, $direct)
     {
 
@@ -399,12 +372,8 @@ Class oUsers extends \obray\oDBO
         return;
 
     }
-
-    public function blah()
-    {
-
-    }
-
+    ***/
+    
     public function setPermissions($permissions)
     {
 
