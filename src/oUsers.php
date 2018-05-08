@@ -102,11 +102,11 @@ Class oUsers extends \obray\oDBO
 
         // if the user exists log them in but only if they haven't exceed the max number of failed attempts (set in settings)
         if (count($this->data) === 1 && $this->data[0]->ouser_failed_attempts < $this->max_failed_login_attempts && $this->data[0]->ouser_status != 'disabled') {
-            $_SESSION[$this->user_session_key] = $this->data[0];
+            $this->oSession->{$this->user_session_key} = $this->data[0];
             $this->getRolesAndPermissions();
-            $_SESSION[$this->user_session_key]->ouser_settings = unserialize(base64_decode($_SESSION[$this->user_session_key]->ouser_settings));
+            $this->oSession->{$this->user_session_key}->ouser_settings = unserialize(base64_decode($this->oSession->{$this->user_session_key}->ouser_settings));
             $this->update(array(
-                'ouser_id' => $_SESSION[$this->user_session_key]->ouser_id,
+                'ouser_id' => $this->oSession->{$this->user_session_key}->ouser_id,
                 'ouser_failed_attempts' => 0,
                 'ouser_last_login' => date('Y-m-d H:i:s')
             ));
@@ -156,17 +156,17 @@ Class oUsers extends \obray\oDBO
 
     public function logout($params)
     {
-        unset($_SESSION[$this->user_session_key]);
+        unset($this->oSession->{$this->user_session_key});
         $this->data['logout'] = true;
     }
 
     public function authorize($params = array())
     {
 
-        if (!isSet($_SESSION[$this->user_session_key])) {
+        if (!isSet($this->oSession->{$this->user_session_key})) {
             $this->throwError('Forbidden', 403);
         } else {
-            if (isSet($params['level']) && $params['level'] < $_SESSION[$this->user_session_key]->ouser_permission_level) {
+            if (isSet($params['level']) && $params['level'] < $this->oSession->{$this->user_session_key}->ouser_permission_level) {
                 $this->throwError('Forbidden', 403);
             }
         }
@@ -185,18 +185,18 @@ Class oUsers extends \obray\oDBO
     public function setting($params = array())
     {
 
-        if (!empty($params) && !empty($_SESSION[$this->user_session_key]->ouser_id)) {
+        if (!empty($params) && !empty($this->oSession->{$this->user_session_key}->ouser_id)) {
 
             if (!empty($params['key']) && isSet($params['value'])) {
 
-                $_SESSION[$this->user_session_key]->ouser_settings[$params['key']] = $params['value'];
+                $this->oSession->{$this->user_session_key}->ouser_settings[$params['key']] = $params['value'];
 
-                $this->route('/obray/OUsers/update/?ouser_id=' . $_SESSION[$this->user_session_key]->ouser_id . '&ouser_settings=' . base64_encode(serialize($_SESSION[$this->user_session_key]->ouser_settings)));
+                $this->route('/obray/OUsers/update/?ouser_id=' . $this->oSession->{$this->user_session_key}->ouser_id . '&ouser_settings=' . base64_encode(serialize($this->oSession->{$this->user_session_key}->ouser_settings)));
 
             } else {
                 if (!empty($params['key'])) {
 
-                    $this->data[$params['key']] = $_SESSION[$this->user_session_key]->ouser_settings[$params['key']];
+                    $this->data[$params['key']] = $this->oSession->{$this->user_session_key}->ouser_settings[$params['key']];
 
                 }
             }
@@ -213,7 +213,7 @@ Class oUsers extends \obray\oDBO
     public function getRolesAndPermissions()
     {
 
-        if (!empty($_SESSION[$this->user_session_key]->ouser_id)) {
+        if (!empty($this->oSession->{$this->user_session_key}->ouser_id)) {
 
             $sql = "SELECT oPermissions.opermission_code, oRoles.orole_code
 							FROM oUserRoles
@@ -232,7 +232,7 @@ Class oUsers extends \obray\oDBO
             try {
 
                 $statement = $this->oDBOConnection->connect()->prepare($sql);
-                $statement->bindValue(':ouser_id', $_SESSION[$this->user_session_key]->ouser_id);
+                $statement->bindValue(':ouser_id', $this->oSession->{$this->user_session_key}->ouser_id);
                 $result = $statement->execute();
                 $this->data = [];
                 $statement->setFetchMode(\PDO::FETCH_OBJ);
@@ -251,9 +251,9 @@ Class oUsers extends \obray\oDBO
                     }
                 }
 
-                if (!empty($_SESSION[$this->user_session_key])) {
-                    $_SESSION[$this->user_session_key]->permissions = $permissions;
-                    $_SESSION[$this->user_session_key]->roles = $roles;
+                if (!empty($this->oSession->{$this->user_session_key})) {
+                    $this->oSession->{$this->user_session_key}->permissions = $permissions;
+                    $this->oSession->{$this->user_session_key}->roles = $roles;
                 }
 
                 $this->data = array(
@@ -274,109 +274,9 @@ Class oUsers extends \obray\oDBO
         }
 
     }
-    /****
-    protected function checkPermissions($object_name, $direct)
-    {
-
-        //	1)	only restrict permissions if the call is coming from and HTTP request through router $direct === FALSE
-        if ($direct) {
-            return;
-        }
-
-        //	2)	retrieve permissions
-        $perms = $this->getPermissions();
-
-        //	3)	restrict permissions on undefined keys
-        if (!isSet($perms[$object_name])) {
-            $this->throwError('You cannot access this resource.', 403, 'Forbidden');
-
-            // restrict access to users that are not logged in if that's required
-        } else {
-            if ((is_int($perms[$object_name]) && !isSet($_SESSION[$this->user_session_key]))) {
-                if (isSet($_SERVER['PHP_AUTH_USER']) && isSet($_SERVER['PHP_AUTH_PW'])) {
-                    $login = $this->route('/obray/OUsers/login/',
-                        array('ouser_email' => $_SERVER['PHP_AUTH_USER'], 'ouser_password' => $_SERVER['PHP_AUTH_PW']),
-                        true);
-                    if (!isSet($_SESSION[$this->user_session_key])) {
-                        $this->throwError('You cannot access this resource.', 401, 'Unauthorized');
-                    }
-                } else {
-                    $this->throwError('You cannot access this resource.', 401, 'Unauthorized');
-                }
-                // restrict access to users without correct permissions (non-graduated)
-            } else {
-                if (
-                    is_int($perms[$object_name]) &&
-                    isSet($_SESSION[$this->user_session_key]) &&
-                    (
-                        isset($_SESSION[$this->user_session_key]->ouser_permission_level)
-                        && !defined("__OBRAY_GRADUATED_PERMISSIONS__")
-                        && $_SESSION[$this->user_session_key]->ouser_permission_level != $perms[$object_name]
-                    )
-                ) {
-                    $this->throwError('You cannot access this resource.', 403, 'Forbidden');
-                    // restrict access to users without correct permissions (graduated)
-                } else {
-                    if (
-                        is_int($perms[$object_name]) &&
-                        isSet($_SESSION[$this->user_session_key]) &&
-                        (
-                            isset($_SESSION[$this->user_session_key]->ouser_permission_level)
-                            && defined("__OBRAY_GRADUATED_PERMISSIONS__")
-                            && $_SESSION[$this->user_session_key]->ouser_permission_level > $perms[$object_name]
-                        )
-                    ) {
-                        $this->throwError('You cannot access this resource.', 403, 'Forbidden');
-                        // roles & permissions checks
-                    } else {
-                        if (
-                            (
-                                is_array($perms[$object_name]) &&
-                                isSet($perms[$object_name]['permissions']) &&
-                                is_array($perms[$object_name]['permissions']) &&
-                                count(array_intersect($perms[$object_name]['permissions'],
-                                    $_SESSION[$this->user_session_key]->permissions)) == 0
-                            ) || (
-                                is_array($perms[$object_name]) &&
-                                isSet($perms[$object_name]['roles']) &&
-                                is_array($perms[$object_name]['roles']) &&
-                                count(array_intersect($perms[$object_name]['roles'],
-                                    $_SESSION[$this->user_session_key]->roles)) == 0
-                            ) || (
-                                is_array($perms[$object_name]) &&
-                                isSet($perms[$object_name]['roles']) &&
-                                is_array($perms[$object_name]['roles']) &&
-                                in_array("SUPER", $_SESSION[$this->user_session_key]->roles)
-                            ) || (
-                                is_array($perms[$object_name]) &&
-                                isSet($perms[$object_name]['permissions']) &&
-                                !is_array($perms[$object_name]['permissions'])
-                            ) || (
-                                is_array($perms[$object_name]) &&
-                                isSet($perms[$object_name]['roles']) &&
-                                !is_array($perms[$object_name]['roles'])
-                            ) || (
-                                is_array($perms[$object_name]) &&
-                                !isSet($perms[$object_name]['roles']) &&
-                                !isSet($perms[$object_name]['permissions'])
-                            )
-                        ) {
-                            $this->throwError('You cannot access this resource.', 403, 'Forbidden');
-
-                        }
-                    }
-                }
-            }
-        }
-
-        return;
-
-    }
-    ***/
     
     public function setPermissions($permissions)
     {
-
         $this->permissions = $permissions;
     }
 
