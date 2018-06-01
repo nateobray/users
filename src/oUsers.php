@@ -93,24 +93,25 @@ Class oUsers extends \obray\oDBO
         if ($this->isError()) {
             return;
         }
-
+        
         // get user based on credentials
         $response = $this->get(array(
             'ouser_email' => $ouser_email,
             'ouser_password' => $ouser_password
         ));
-
+        
         // if the user exists log them in but only if they haven't exceed the max number of failed attempts (set in settings)
         if (count($this->data) === 1 && $this->data[0]->ouser_failed_attempts < $this->max_failed_login_attempts && $this->data[0]->ouser_status != 'disabled') {
+            $this->data[0]->ouser_settings = unserialize(base64_decode($this->data[0]->ouser_settings));
             $this->oSession->{$this->user_session_key} = $this->data[0];
             $this->getRolesAndPermissions();
-            $this->oSession->{$this->user_session_key}->ouser_settings = unserialize(base64_decode($this->oSession->{$this->user_session_key}->ouser_settings));
             $this->update(array(
                 'ouser_id' => $this->oSession->{$this->user_session_key}->ouser_id,
                 'ouser_failed_attempts' => 0,
                 'ouser_last_login' => date('Y-m-d H:i:s')
             ));
-            return $this->data;
+            
+            return $this->oSession->get()->oUser;
         }
 
         // if the data is empty (no user is found with the provided credentials)
@@ -154,9 +155,10 @@ Class oUsers extends \obray\oDBO
      * Logout - destroys the ouser session variable
      ********************************************************************************************************************/
 
-    public function logout($params)
+    public function logout($params=array())
     {
         unset($this->oSession->{$this->user_session_key});
+        $this->oSession->clear();
         $this->data['logout'] = true;
     }
 
