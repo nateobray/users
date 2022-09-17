@@ -4,11 +4,12 @@
         "license": "MIT",
         "homepage": "http://www.obray.net",
         "require": {
-            "php": ">=5.6"
+            "php": ">=5.6",
+            "obray/data": "dev-master"
         },
         "autoload": {
             "psr-4": {
-                "obray\\": "src"
+                "obray\\users\\": "src"
             }
         }
     }
