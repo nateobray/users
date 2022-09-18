@@ -8,6 +8,7 @@ use obray\data\types\PrimaryKey;
 Class UserRoles extends DBO
 {
     const TABLE = 'UserRoles';
+    
     protected PrimaryKey $col_user_role_id;
     protected Int11Unsigned $col_role_id;
     protected Int11Unsigned $col_user_id;
