@@ -1,5 +1,5 @@
 <?php
-namespace obray;
+namespace obray\users;
 
 use obray\data\DBO;
 use obray\data\types\Boolean;
