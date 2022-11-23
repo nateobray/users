@@ -38,14 +38,15 @@ class PermissionHandler implements PermissionsInterface
         // reflect the PERMISSIONS constant
         $reflect = new \ReflectionClass($obj);
         $perms = $reflect->getConstant('PERMISSIONS');
-        $userPerms = $this->session->user->permissions??[];
+        $userPerms = [];
+        if(isSet($this->session->user)) $userPerms = $this->session->user->permissions;
         
         // if object has permissions, check start additional perm checks
         if(!empty($perms)){
 
             // OBJECT
             // if we're just access the object and it's permissions are "any" then we let it through
-            if($fn === null && isSet($perms["object"]) && strtolower($perms["object"]) === 'any') return;
+            if($fn === null && isSet($perms["object"]) && $perms["object"] === Permission::ANY) return;
             // normalize the permissions to an array of permissions
             if(!is_array($perms["object"])) $perms["object"] = [$perms["object"]];
             // check the intersect of the set object perm and the users permissions
@@ -53,7 +54,7 @@ class PermissionHandler implements PermissionsInterface
 
             // FUNCTION
             // if we have a function check to see if it's perms are "any" and if so let it through
-            if($fn !== null && isSet($perms[$fn]) && strtolower($perms[$fn]) === 'any') return;
+            if($fn !== null && isSet($perms[$fn]) && $perms[$fn] === Permission::ANY) return;
             // normalize our function perm
             if($fn !== null && isSet($perms[$fn]) && !is_array($perms[$fn])) $perms[$fn] = [$perms[$fn]];
             // check the intersect of the set function perm and the users permissions
